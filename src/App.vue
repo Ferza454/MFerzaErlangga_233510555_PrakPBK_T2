@@ -1,5 +1,8 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+
+// Key untuk localStorage
+const STORAGE_KEY = 'vue-todo-app'
 
 // Data reactive
 const appTitle = ref('Manajemen Tugas Vue 3')
@@ -8,14 +11,27 @@ const newTask = ref({
   priority: 'medium',
   completed: false
 })
-const tasks = ref([
-  { id: 1, name: 'Belajar Vue.js', priority: 'high', completed: false },
-  { id: 2, name: 'Buat proyek kecil', priority: 'medium', completed: true },
-  { id: 3, name: 'Deploy aplikasi', priority: 'low', completed: false }
-])
+const tasks = ref([])
 const editingTaskId = ref(null)
 const showCompleted = ref(true)
-const nextId = ref(4)
+const nextId = ref(1)
+
+// Load data dari localStorage saat komponen dimount
+onMounted(() => {
+  const savedTasks = localStorage.getItem(STORAGE_KEY)
+  if (savedTasks) {
+    tasks.value = JSON.parse(savedTasks)
+    // Cari ID tertinggi untuk nextId
+    if (tasks.value.length > 0) {
+      nextId.value = Math.max(...tasks.value.map(task => task.id)) + 1
+    }
+  }
+})
+
+// Simpan data ke localStorage setiap kali tasks berubah
+const saveToLocalStorage = () => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks.value))
+}
 
 // Computed properties
 const incompleteTasks = computed(() => {
@@ -34,18 +50,22 @@ const addTask = () => {
   
   tasks.value.push({
     id: nextId.value++,
-    name: newTask.value.name,
+    name: newTask.value.name.trim(),
     priority: newTask.value.priority,
-    completed: false
+    completed: false,
+    createdAt: new Date().toISOString()
   })
   
   // Reset form
   newTask.value.name = ''
   newTask.value.priority = 'medium'
+  
+  saveToLocalStorage()
 }
 
 const deleteTask = (id) => {
   tasks.value = tasks.value.filter(task => task.id !== id)
+  saveToLocalStorage()
 }
 
 const startEdit = (id) => {
@@ -54,6 +74,7 @@ const startEdit = (id) => {
 
 const saveEdit = () => {
   editingTaskId.value = null
+  saveToLocalStorage()
 }
 
 const cancelEdit = () => {
@@ -62,6 +83,20 @@ const cancelEdit = () => {
 
 const updateTaskStatus = (task) => {
   console.log(`Status tugas "${task.name}" diubah menjadi ${task.completed ? 'selesai' : 'belum selesai'}`)
+  saveToLocalStorage()
+}
+
+const clearCompleted = () => {
+  tasks.value = tasks.value.filter(task => !task.completed)
+  saveToLocalStorage()
+}
+
+const clearAllTasks = () => {
+  if (confirm('Apakah Anda yakin ingin menghapus semua tugas?')) {
+    tasks.value = []
+    nextId.value = 1
+    saveToLocalStorage()
+  }
 }
 </script>
 
@@ -98,11 +133,25 @@ const updateTaskStatus = (task) => {
     
     <div v-else>
       <div class="task-controls">
-        <h2>Daftar Tugas ({{ incompleteTasks.length }} belum selesai)</h2>
-        <label class="toggle-completed">
-          <input type="checkbox" v-model="showCompleted">
-          <span>Tampilkan tugas selesai</span>
-        </label>
+        <div>
+          <h2>Daftar Tugas ({{ incompleteTasks.length }} belum selesai)</h2>
+          <div class="task-meta">
+            Total: {{ tasks.length }} tugas | 
+            Selesai: {{ tasks.length - incompleteTasks.length }}
+          </div>
+        </div>
+        <div class="controls-right">
+          <label class="toggle-completed">
+            <input type="checkbox" v-model="showCompleted">
+            <span>Tampilkan tugas selesai</span>
+          </label>
+          <button @click="clearCompleted" class="btn btn-clear">
+            Hapus Tugas Selesai
+          </button>
+          <button @click="clearAllTasks" class="btn btn-clear-all">
+            Hapus Semua
+          </button>
+        </div>
       </div>
       
       <!-- Attribute Bindings -->
@@ -127,9 +176,14 @@ const updateTaskStatus = (task) => {
             <!-- Conditional Rendering untuk mode edit/tampil -->
             <div v-if="editingTaskId !== task.id" class="task-info">
               <span class="task-name">{{ task.name }}</span>
-              <span class="task-priority">{{ 
-                { high: 'Tinggi', medium: 'Sedang', low: 'Rendah' }[task.priority] 
-              }}</span>
+              <div class="task-details">
+                <span class="task-priority">{{ 
+                  { high: 'Tinggi', medium: 'Sedang', low: 'Rendah' }[task.priority] 
+                }}</span>
+                <span class="task-date">
+                  Dibuat: {{ new Date(task.createdAt).toLocaleDateString() }}
+                </span>
+              </div>
             </div>
             
             <div v-else class="task-edit">
@@ -184,4 +238,45 @@ const updateTaskStatus = (task) => {
 </template>
 
 <style scoped>
+.task-meta {
+  font-size: 0.875rem;
+  color: var(--text-light);
+  margin-top: 0.25rem;
+}
+
+.controls-right {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.task-details {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.875rem;
+  color: var(--text-light);
+}
+
+.task-date {
+  font-style: italic;
+}
+
+.btn-clear {
+  background-color: var(--warning);
+  color: white;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+.btn-clear-all {
+  background-color: var(--danger);
+  color: white;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+.btn-clear:hover, .btn-clear-all:hover {
+  opacity: 0.9;
+}
 </style>
