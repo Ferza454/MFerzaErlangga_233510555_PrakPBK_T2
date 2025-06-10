@@ -184,5 +184,4 @@ const updateTaskStatus = (task) => {
 </template>
 
 <style scoped>
-/* CSS akan ditempatkan di file terpisah */
 </style>
